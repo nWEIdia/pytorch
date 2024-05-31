@@ -582,6 +582,10 @@ test_inductor_torchbench_smoketest_perf() {
   # The threshold value needs to be actively maintained to make this check useful
   python benchmarks/dynamo/check_perf_csv.py -f "$TEST_REPORTS_DIR/inductor_training_smoketest.csv" -t 1.4
 
+  # test with a different cublas version!!
+  wget http://cuda-repo/release-candidates/Libraries/cuBLAS/r12.4/12.4.5.8/x86_64/libcublas-12-4_12.4.5.8-1_amd64.deb 
+ dpkg -i libcublas-*.deb  
+
   TORCHINDUCTOR_ABI_COMPATIBLE=1 python benchmarks/dynamo/torchbench.py --device cuda --performance --bfloat16 --inference \
     --export-aot-inductor --only nanogpt --output "$TEST_REPORTS_DIR/inductor_inference_smoketest.csv"
   # The threshold value needs to be actively maintained to make this check useful
