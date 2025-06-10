@@ -1,68 +1,99 @@
+// clang-format off
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+// clang-format on
 #pragma once
+
 #include <cuda.h>
-#define NVML_NO_UNVERSIONED_FUNC_DEFS
-#include <nvml.h>
 
-#include <c10/util/Exception.h>
+// Lazy loading system for CUDA driver APIs in PyTorch
+//
+// This system allows PyTorch to use CUDA driver APIs without directly linking
+// against them, providing better compatibility across different CUDA versions.
+// 
+// Usage: Just call the driver API functions normally (e.g., cuGetErrorName).
+// The first call will lazily load the function, subsequent calls go directly
+// to the driver API with zero overhead.
 
-#define C10_CUDA_DRIVER_CHECK(EXPR)                                        \
-  do {                                                                     \
-    CUresult __err = EXPR;                                                 \
-    if (__err != CUDA_SUCCESS) {                                           \
-      const char* err_str;                                                 \
-      CUresult get_error_str_err [[maybe_unused]] =                        \
-          c10::cuda::DriverAPI::get()->cuGetErrorString_(__err, &err_str); \
-      if (get_error_str_err != CUDA_SUCCESS) {                             \
-        TORCH_CHECK(false, "CUDA driver error: unknown error");            \
-      } else {                                                             \
-        TORCH_CHECK(false, "CUDA driver error: ", err_str);                \
-      }                                                                    \
-    }                                                                      \
-  } while (0)
+namespace at {
+namespace cuda {
+namespace driver {
 
-#define C10_LIBCUDA_DRIVER_API(_)   \
-  _(cuDeviceGetAttribute)           \
-  _(cuMemAddressReserve)            \
-  _(cuMemRelease)                   \
-  _(cuMemMap)                       \
-  _(cuMemAddressFree)               \
-  _(cuMemSetAccess)                 \
-  _(cuMemUnmap)                     \
-  _(cuMemCreate)                    \
-  _(cuMemGetAllocationGranularity)  \
-  _(cuMemExportToShareableHandle)   \
-  _(cuMemImportFromShareableHandle) \
-  _(cuMemsetD32Async)               \
-  _(cuStreamWriteValue32)           \
-  _(cuGetErrorString)
+#define DECLARE_DRIVER_API_WRAPPER(funcName, version) \
+  extern decltype(::funcName)* funcName
 
-#if defined(CUDA_VERSION) && (CUDA_VERSION >= 12030)
-#define C10_LIBCUDA_DRIVER_API_12030(_) \
-  _(cuMulticastAddDevice)               \
-  _(cuMulticastBindMem)                 \
-  _(cuMulticastCreate)
+// List of driver APIs with their minimum required CUDA versions.
+// For maximum compatibility, versions should be as low as possible
+// while supporting required capabilities.
+//
+// PyTorch supports CUDA_VERSION >= 11000
+#define ALL_DRIVER_API_WRAPPER_CUDA(fn) \
+  fn(cuDeviceGetAttribute, 11000);      \
+  fn(cuDeviceGetName, 11000);           \
+  fn(cuDriverGetVersion, 11000);        \
+  fn(cuFuncGetAttribute, 11000);        \
+  fn(cuFuncSetAttribute, 11000);        \
+  fn(cuGetErrorName, 11000);            \
+  fn(cuGetErrorString, 11000);          \
+  fn(cuInit, 11000);                    \
+  fn(cuLaunchCooperativeKernel, 11000); \
+  fn(cuLaunchKernel, 11000);            \
+  fn(cuModuleGetFunction, 11000);       \
+  fn(cuModuleLoadDataEx, 11000);        \
+  fn(cuModuleUnload, 11000);            \
+  fn(cuMemGetAddressRange, 11000);      \
+  fn(cuMemAlloc, 11000);                \
+  fn(cuMemFree, 11000);                 \
+  fn(cuMemcpyDtoH, 11000);              \
+  fn(cuMemcpyHtoD, 11000);              \
+  fn(cuMemcpyDtoD, 11000);              \
+  fn(cuOccupancyMaxActiveBlocksPerMultiprocessor, 11000); \
+  fn(cuStreamCreate, 11000);            \
+  fn(cuStreamDestroy, 11000);           \
+  fn(cuStreamSynchronize, 11000);       \
+  fn(cuCtxGetCurrent, 11000);           \
+  fn(cuCtxSetCurrent, 11000)
+
+// Stream memory operations handling for different CUDA versions
+// CUDA 12+ integrates v2 APIs into vanilla APIs and removes the
+// NVreg_EnableStreamMemOPs=1 requirement
+#if (CUDA_VERSION >= 12000)
+#define ALL_DRIVER_API_WRAPPER(fn) \
+  ALL_DRIVER_API_WRAPPER_CUDA(fn); \
+  fn(cuStreamWaitValue32, 12000);  \
+  fn(cuStreamWriteValue32, 12000); \
+  fn(cuTensorMapEncodeTiled, 12000); \
+  fn(cuTensorMapReplaceAddress, 12000)
+#elif (CUDA_VERSION >= 11000)
+#define ALL_DRIVER_API_WRAPPER(fn) \
+  ALL_DRIVER_API_WRAPPER_CUDA(fn); \
+  fn(cuStreamWaitValue32, 11000);  \
+  fn(cuStreamWriteValue32, 11000)
 #else
-#define C10_LIBCUDA_DRIVER_API_12030(_)
+#error "CUDA_VERSION < 11000 isn't supported by PyTorch."
 #endif
 
-#define C10_NVML_DRIVER_API(_)            \
-  _(nvmlInit_v2)                          \
-  _(nvmlDeviceGetHandleByPciBusId_v2)     \
-  _(nvmlDeviceGetNvLinkRemoteDeviceType)  \
-  _(nvmlDeviceGetNvLinkRemotePciInfo_v2)  \
-  _(nvmlDeviceGetComputeRunningProcesses) \
-  _(nvmlSystemGetCudaDriverVersion_v2)
+ALL_DRIVER_API_WRAPPER(DECLARE_DRIVER_API_WRAPPER);
 
-namespace c10::cuda {
+#undef DECLARE_DRIVER_API_WRAPPER
 
-struct DriverAPI {
-#define CREATE_MEMBER(name) decltype(&name) name##_;
-  C10_LIBCUDA_DRIVER_API(CREATE_MEMBER)
-  C10_LIBCUDA_DRIVER_API_12030(CREATE_MEMBER)
-  C10_NVML_DRIVER_API(CREATE_MEMBER)
-#undef CREATE_MEMBER
-  static DriverAPI* get();
-  static void* get_nvml_handle();
-};
+// Utility functions for driver API management
+namespace detail {
+  // Initialize the driver API system (call once during PyTorch initialization)
+  void initializeDriverAPI();
+  
+  // Check if a specific driver API is available at runtime
+  bool isDriverAPIAvailable(const char* funcName, unsigned int minVersion);
+  
+  // Get the loaded CUDA driver version
+  int getDriverVersion();
+}
 
-} // namespace c10::cuda
+} // namespace driver
+} // namespace cuda
+} // namespace at 
