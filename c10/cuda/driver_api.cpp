@@ -7,7 +7,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 // clang-format on
-
+#if !defined(USE_ROCM) && defined(PYTORCH_C10_DRIVER_API_SUPPORTED)
+#include <c10/cuda/driver_api.h>
 #include <iostream>
 #include <mutex>
 #include <unordered_map>
@@ -19,8 +20,6 @@
 #include <c10/cuda/CUDAException.h>
 #include <c10/util/Exception.h>
 
-// Include the header we just created
-#include "pytorch_driver_api.h"
 
 // How does the lazy loading magic work?
 //
@@ -211,3 +210,4 @@ int getDriverVersion() {
 } // namespace at
 
 #undef DEFINE_DRIVER_API_WRAPPER 
+#endif
