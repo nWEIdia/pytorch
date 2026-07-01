@@ -289,3 +289,41 @@ When using `<cuda/ptx>` typed wrappers for PTX instructions:
   `ptx::n32_t<N>{}`, not a runtime integer.
 - **Mbarrier smem**: Mbarrier memory must never alias with data targeted by TMA
   operations. Place mbarriers in a separate smem region from data buffers.
+
+# Cursor Cloud specific instructions
+
+This environment is set up for **CPU-only, Python-level development** using a
+prebuilt nightly binary (the `USE_NIGHTLY` flow from `codex_setup.sh`), NOT a
+full source build. The startup update script creates `/workspace/.venv`,
+installs `requirements.txt`, and installs `torch` editable against the repo
+Python source with a downloaded CPU nightly wheel providing the compiled
+libraries.
+
+- **Activate the env**: `source .venv/bin/activate` (Python 3.12, system
+  interpreter). `torch.cuda.is_available()` is `False` here.
+- **What's editable vs not**: Edits to `torch/**/*.py` are picked up
+  immediately (editable install). Edits to C++/CUDA/kernels are NOT reflected —
+  they require a real source build (`pip install -e . -v --no-build-isolation`),
+  which is heavy and not part of this CPU setup.
+- **`undefined symbol: _PyEval_RequestCodeExtraIndex` on `import torch`**: this
+  means a wrong-ABI nightly wheel got extracted into `torch/` (e.g. `uvx pip
+  download` inside `setup.py` defaulted to a non-3.12 interpreter and left a
+  `torch/_C.cpython-31X-*.so` plus a mismatched `torch/lib/libtorch_python.so`).
+  Fix: `git clean -xfd torch/` then reinstall with the download pinned to the
+  venv ABI: `UV_PYTHON="$PWD/.venv/bin/python" USE_NIGHTLY="<version>+cpu"
+  python -m pip install --no-build-isolation --no-deps -e .`. Always pin
+  `UV_PYTHON` to the venv when reinstalling the nightly binary.
+- **`torch.compile` / inductor** needs `Python.h` (the system `python3.12-dev`
+  package, already installed). Without it you get `Can't find Python.h`.
+- **Linting**: `spin lint` (the mandated entrypoint) fails on first use because
+  its `uvx lintrunner init` downloads clang-format/clang-tidy/actionlint from
+  `oss-clang-format.s3.us-east-2.amazonaws.com`, which is blocked by network
+  egress here. For Python and other non-S3 linters, run lintrunner directly and
+  skip the S3-backed ones:
+  `lintrunner --skip CLANGFORMAT,CLANGTIDY,CLANGTIDY_EXECUTORCH_COMPATIBILITY,ACTIONLINT -- <files>`
+  (add `-a` to auto-apply fixes). RUFF/PYFMT/FLAKE8/etc. self-install via
+  `uv run --script`, so they need no init. To use `spin lint`/full C++ lint,
+  ask for egress to that S3 host.
+- **Tests**: `pytest` is not in `requirements.txt`; run test files directly with
+  the repo runner, e.g. `python test/test_autograd.py -k <pattern>`. Install
+  `pytest` into the venv if you want the pytest UX.
