@@ -363,15 +363,12 @@ function install_cutlass_api() {
   # Install CuTeDSL dependency first
   install_cutlass_dsl
 
-  # Grab latest til we have a pinned commit
-  local cutlass_commit
-  cutlass_commit=$(git ls-remote https://github.com/NVIDIA/cutlass.git refs/heads/cutlass_api | cut -f1)
+  local cutlass_version=v4.2.2
 
   rm -rf cutlass-build
-  git clone --depth 1 -b cutlass_api https://github.com/NVIDIA/cutlass.git cutlass-build
+  git clone --depth 1 -b "${cutlass_version}" https://github.com/NVIDIA/cutlass.git cutlass-build
 
   pushd cutlass-build
-  git checkout "${cutlass_commit}"
 
   # Install cutlass_api with torch extras
   pip_install "python/cutlass_api[torch]"
