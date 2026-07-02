@@ -33,6 +33,7 @@ BUILD_TYPE               ?= dev
 BUILD_PROGRESS           ?= auto
 # Intentionally left blank
 TRITON_VERSION           ?=
+DOCKER_TAG_SUFFIX        ?=
 BUILD_ARGS                = --build-arg BASE_IMAGE=$(BASE_IMAGE) \
 							--build-arg PYTHON_VERSION=$(PYTHON_VERSION) \
 							--build-arg CUDA_VERSION=$(CUDA_VERSION) \
@@ -79,13 +80,13 @@ all: devel-image
 .PHONY: devel-image
 devel-image: BASE_IMAGE := $(BASE_DEVEL)
 devel-image: BUILD_TYPE := dev
-devel-image: DOCKER_TAG := $(PYTORCH_VERSION)-cuda$(CUDA_VERSION_SHORT)-cudnn$(CUDNN_VERSION)-devel
+devel-image: DOCKER_TAG := $(PYTORCH_VERSION)-cuda$(CUDA_VERSION_SHORT)-cudnn$(CUDNN_VERSION)-devel$(DOCKER_TAG_SUFFIX)
 devel-image:
 	$(DOCKER_BUILD)
 
 .PHONY: devel-push
 devel-push: BASE_IMAGE := $(BASE_DEVEL)
-devel-push: DOCKER_TAG := $(PYTORCH_VERSION)-cuda$(CUDA_VERSION_SHORT)-cudnn$(CUDNN_VERSION)-devel
+devel-push: DOCKER_TAG := $(PYTORCH_VERSION)-cuda$(CUDA_VERSION_SHORT)-cudnn$(CUDNN_VERSION)-devel$(DOCKER_TAG_SUFFIX)
 devel-push:
 	$(DOCKER_PUSH)
 
@@ -94,13 +95,13 @@ ifeq ("$(CUDA_VERSION_SHORT)","cpu")
 .PHONY: runtime-image
 runtime-image: BASE_IMAGE := $(BASE_RUNTIME)
 runtime-image: BUILD_TYPE := official
-runtime-image: DOCKER_TAG := $(PYTORCH_VERSION)-runtime
+runtime-image: DOCKER_TAG := $(PYTORCH_VERSION)-runtime$(DOCKER_TAG_SUFFIX)
 runtime-image:
 	$(DOCKER_BUILD)
 
 .PHONY: runtime-push
 runtime-push: BASE_IMAGE := $(BASE_RUNTIME)
-runtime-push: DOCKER_TAG := $(PYTORCH_VERSION)-runtime
+runtime-push: DOCKER_TAG := $(PYTORCH_VERSION)-runtime$(DOCKER_TAG_SUFFIX)
 runtime-push:
 	$(DOCKER_PUSH)
 
@@ -109,13 +110,13 @@ else
 .PHONY: runtime-image
 runtime-image: BASE_IMAGE := $(BASE_RUNTIME)
 runtime-image: BUILD_TYPE := official
-runtime-image: DOCKER_TAG := $(PYTORCH_VERSION)-cuda$(CUDA_VERSION_SHORT)-cudnn$(CUDNN_VERSION)-runtime
+runtime-image: DOCKER_TAG := $(PYTORCH_VERSION)-cuda$(CUDA_VERSION_SHORT)-cudnn$(CUDNN_VERSION)-runtime$(DOCKER_TAG_SUFFIX)
 runtime-image:
 	$(DOCKER_BUILD)
 
 .PHONY: runtime-push
 runtime-push: BASE_IMAGE := $(BASE_RUNTIME)
-runtime-push: DOCKER_TAG := $(PYTORCH_VERSION)-cuda$(CUDA_VERSION_SHORT)-cudnn$(CUDNN_VERSION)-runtime
+runtime-push: DOCKER_TAG := $(PYTORCH_VERSION)-cuda$(CUDA_VERSION_SHORT)-cudnn$(CUDNN_VERSION)-runtime$(DOCKER_TAG_SUFFIX)
 runtime-push:
 	$(DOCKER_PUSH)
 
