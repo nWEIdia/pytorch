@@ -21,8 +21,8 @@ DOCKER_IMAGE_TYPES = ["runtime", "devel"]
 
 def generate_docker_matrix() -> dict[str, list[dict[str, str]]]:
     ret: list[dict[str, str]] = []
-    # CUDA amd64 Docker images are available as both runtime and devel while
-    # CPU arm64 image is only available as runtime.
+    # CUDA Docker images are available on amd64 and arm64 as both runtime and
+    # devel while CPU arm64 image is only available as runtime.
     for cuda, version in generate_binary_build_matrix.CUDA_ARCHES_FULL_VERSION.items():
         for image in DOCKER_IMAGE_TYPES:
             ret.append(
@@ -33,7 +33,7 @@ def generate_docker_matrix() -> dict[str, list[dict[str, str]]]:
                         cuda
                     ],
                     "image_type": image,
-                    "platform": "linux/amd64",
+                    "platform": "linux/amd64,linux/arm64",
                 }
             )
     ret.append(

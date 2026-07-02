@@ -41,21 +41,16 @@ RUN git submodule update --init --recursive
 FROM python-deps as pytorch-installs
 ARG CUDA_PATH=cu121
 ARG INSTALL_CHANNEL=whl/nightly
-# Automatically set by buildx
-ARG TARGETPLATFORM
 
 # torchaudio does not publish wheels against the CUDA 13.2 index yet,
 # so skip it when CUDA_PATH=cu132 to keep this Dockerfile building.
-RUN case ${TARGETPLATFORM} in \
-         "linux/arm64")  pip3 install --extra-index-url https://download.pytorch.org/whl/cpu/ torch torchvision torchaudio ;; \
-         *) \
-             if [ "${CUDA_PATH}" = "cu132" ]; then \
-                 pip3 install --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_PATH}/ torch torchvision; \
-             else \
-                 pip3 install --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_PATH}/ torch torchvision torchaudio; \
-             fi \
-             ;; \
-    esac
+RUN if [ "${CUDA_PATH}" = "cpu" ]; then \
+        pip3 install --extra-index-url https://download.pytorch.org/whl/cpu/ torch torchvision torchaudio; \
+    elif [ "${CUDA_PATH}" = "cu132" ]; then \
+        pip3 install --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_PATH}/ torch torchvision; \
+    else \
+        pip3 install --index-url https://download.pytorch.org/${INSTALL_CHANNEL}/${CUDA_PATH}/ torch torchvision torchaudio; \
+    fi
 RUN pip3 install torchelastic
 RUN IS_CUDA=$(python3 -c 'import torch ; print(torch.cuda._is_compiled())'); \
     echo "Is torch compiled with cuda: ${IS_CUDA}"; \
@@ -66,7 +61,6 @@ RUN IS_CUDA=$(python3 -c 'import torch ; print(torch.cuda._is_compiled())'); \
 FROM ${BASE_IMAGE} as official
 ARG PYTORCH_VERSION
 ARG TRITON_VERSION
-ARG TARGETPLATFORM
 ARG CUDA_VERSION
 LABEL com.nvidia.volumes.needed="nvidia_driver"
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -81,7 +75,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 # Copy Python packages from pytorch-installs stage
 COPY --from=pytorch-installs /usr/local/lib/python3.12 /usr/local/lib/python3.12
 COPY --from=pytorch-installs /usr/local/bin /usr/local/bin
-RUN if test -n "${CUDA_VERSION}" -a "${TARGETPLATFORM}" != "linux/arm64"; then \
+RUN if test -n "${CUDA_VERSION}"; then \
         apt-get update -qq && \
         DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gcc && \
         rm -rf /var/lib/apt/lists/*; \

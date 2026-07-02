@@ -146,11 +146,11 @@ jobs:
         run: |
           make -f docker.Makefile "${BUILD_IMAGE_TYPE}-image"
       - name: Push nightly tags
-        if: ${{ github.event.ref == 'refs/heads/nightly' && matrix.image_type == 'runtime' && matrix.platform == 'linux/amd64' }}
+        if: ${{ github.event.ref == 'refs/heads/nightly' && matrix.image_type == 'runtime' && matrix.cuda != 'cpu' }}
         run: |
           PYTORCH_DOCKER_TAG="${PYTORCH_VERSION}-cuda${CUDA_VERSION_SHORT}-cudnn${CUDNN_VERSION}-runtime"
           CUDA_SUFFIX="-cu${CUDA_VERSION}"
-          PYTORCH_NIGHTLY_COMMIT=$(docker run ghcr.io/pytorch/pytorch-nightly:"${PYTORCH_DOCKER_TAG}" \
+          PYTORCH_NIGHTLY_COMMIT=$(docker run --platform linux/amd64 ghcr.io/pytorch/pytorch-nightly:"${PYTORCH_DOCKER_TAG}" \
                                           python -c 'import torch; print(torch.version.git_version[:7],end="")')
 
           docker tag ghcr.io/pytorch/pytorch-nightly:"${PYTORCH_DOCKER_TAG}" \
